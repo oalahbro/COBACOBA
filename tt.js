@@ -6,7 +6,7 @@ const fetch = require("node-fetch");
 const https = require('https');
 const fs = require('fs');
 const { MessageMedia } = require('whatsapp-web.js');
-const tiktok_url = "https://www.tiktok.com/@ugm.id/video/7273380937675640069"
+const tiktok_url = "https://www.tiktok.com/@salzabilll_/video/7275737700462775557"
 
 
 
@@ -14,7 +14,7 @@ const tiktok_url = "https://www.tiktok.com/@ugm.id/video/7273380937675640069"
 
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: { headless: false, executablePath: '/opt/google/chrome/google-chrome' },
+    puppeteer: { headless: true, executablePath: '/opt/google/chrome/google-chrome' },
 
 });
 client.initialize();
@@ -44,7 +44,7 @@ var foo = async (msg) => {
             foo()
         } else {
             const link = urls[0]
-            console.log(link)
+            // console.log(link)
             let url = tiktok_url;
             if (url.endsWith('/')) url = url.substring(0, url.length - 1);
             const urlParts = url.split("/");
@@ -57,8 +57,12 @@ var foo = async (msg) => {
               
             });
             // const media = MessageMedia.fromUrl(link);
-            let media = MessageMedia.fromFilePath(`./${id}.mp4`)
-            client.sendMessage("6281927442421@c.us", media)
+            namefile = id.slice(0, -8) + '.mp4'
+            fs.rename(`${id}.mp4`, namefile, function(err) {
+                if ( err ) console.log('ERROR: ' + err);
+            });
+            let media = MessageMedia.fromFilePath('/home/eclipse/COBACOBA/' + namefile)
+            // client.sendMessage("6281927442421@c.us", media)
             msg.reply(media);
         }
 
