@@ -6,7 +6,7 @@ const fetch = require("node-fetch");
 const https = require('https');
 const fs = require('fs');
 const { MessageMedia } = require('whatsapp-web.js');
-const tiktok_url = "https://www.tiktok.com/@ugm.id/video/7273380937675640069"
+const tiktok_url = "https://www.tiktok.com/@b13226648j4/video/7273536223866572065"
 let bro = 0
 
 const client = new Client({
@@ -32,7 +32,7 @@ client.on('ready', () => {
 
 var foo = async () => {
     // do something
-   var bar = await TiktokDL(tiktok_url).then((result) => {
+   var bar =  TiktokDL(tiktok_url).then((result) => {
         urlnya = JSON.stringify(result)
         const urls = urlnya.match(urlRegex());
         // const link = urls.at(0)
@@ -41,7 +41,6 @@ var foo = async () => {
             foo()
         } else {
             const link = urls[0]
-            console.log(link)
             let url = tiktok_url;
             if (url.endsWith('/')) url = url.substring(0, url.length - 1);
             const urlParts = url.split("/");
@@ -59,20 +58,23 @@ var foo = async () => {
     })
   }
 
-client.on('message', msg => {
+client.on('message', async msg => {
     if (msg.body == '/lop') {
-        foo()
+        await foo()
+        await new Promise(resolve => setTimeout(resolve, 5000));
         if (bro == 0) {
-            foo()
-            let media = MessageMedia.fromFilePath(bro+'.mp4')
-            console.log(bro+'okeeeee')
-            msg.reply(media);
+           await foo()
         } else {
-            let media = MessageMedia.fromFilePath(bro+'.mp4')
-            console.log(bro+'okeeeee')
-            msg.reply(media);
+            if (fs.existsSync(bro+'.mp4')) {
+                console.log('ada')
+                let media = MessageMedia.fromFilePath(bro+'.mp4')
+                console.log(bro+'okeeeee')
+                msg.reply(media);
+              }else{
+                console.log("ga ada")
+                foo()
+              }
         }
-        
         
     }
 });
