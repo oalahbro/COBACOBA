@@ -7,6 +7,7 @@ const app = express()
 const port = 3000
 const { MessageMedia } = require('whatsapp-web.js');
 const fetch = require('node-fetch');
+const mime = require('mime-types');
 
 
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -122,37 +123,42 @@ app.post('/kirimpdf', async (req, res) => {
     console.log(url)
 })
 
-app.post('/otp', (req, res) => {
-
-    let pesan = req.body.pesan
-    let nomer = req.body.nomer
-
-    var phoneno = /^(62)8[1-9][0-9]{6,10}$/;
-    if (nomer.match(phoneno)) {
-
-        client.sendMessage(nomer + "@c.us", pesan)
-
-        // res.send(req.body)
-        res.json({ status: 'sukses' })
-        console.log('sukses')
-    }
-    else {
-        console.log('gagal')
-        res.send('gagal')
-    }
-
-    console.log(nomer + "@c.us")
-    console.log(pesan)
-})
+client.on('message', async message => {
+    let chat = await message.getChat();
+    chat.sendSeen();
+    
+    if(message.body === '/sticker'){
+            if(message.hasMedia){
+                message.downloadMedia().then(media => {
+                    if (media) {
+                        const mediaPath = './mediaPath/';
+                        if (!fs.existsSync(mediaPath)) {
+                            fs.mkdirSync(mediaPath);
+                        }
+                        const extension = mime.extension(media.mimetype);
+                        const filename = new Date().getTime();
+                        const filename1 = mediaPath + filename + '.' + extension;
+                        try {
+                            fs.writeFileSync(filename1, media.data, {encoding: 'base64'});
+                            MessageMedia.fromFilePath(filePath = filename1)
+                            client.sendMessage(message.from, new MessageMedia(media.mimetype, media.data, filename), {sendMediaAsSticker: true,stickerAuthor:"BotWA",stickerName:"Sticker"})
+                            fs.unlinkSync(filename1)
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    }
+                });
+            }
+        }
+    })
 
 app.listen(port, () => {
-
-
     console.log(`Example app listening on port ${port}`)
 })
 client.on('message', msg => {
-    if (msg.body == '/ping') {
-        msg.reply('pong');
+        if(msg.body.includes('/ping')){
+            let string = msg.body.split(" ");
+            msg.reply(string);
     }
 });
 
