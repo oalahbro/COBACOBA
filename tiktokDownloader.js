@@ -7,52 +7,6 @@ const https = require('https');
 const fs = require('fs');
 const { MessageMedia } = require('whatsapp-web.js');
 const { url } = require("inspector");
- const tiktok_url = "https://www.tiktok.com/@salzabilll_/video/7275737700462775557"
-
-
-// const getTiktokUrls = async (tiktok_url) => {
-//     try {
-//         const result = await TiktokDL(tiktok_url);
-//         const urlnya = JSON.stringify(result);
-//         const urls = urlnya.match(urlRegex());
-        
-//         if (!urls) {
-//             // Handle the case where urls are not found (optional)
-//             return [];
-//         }
-
-//         // Filter URLs that contain "v" and "CDN"
-//         // const filteredUrls = urls.filter(url => url.includes("v") && url.includes("CDN"));
-        
-
-//         return urls[0];
-//     } catch (error) {
-//         // Handle any errors that occur during the TiktokDL request
-//         console.error(error);
-//         return [];
-//     }
-// };
-// // Usage
-// const tiktok_url = "https://www.tiktok.com/@salzabilll_/video/7275737700462775557";
-// // const file = fs.createWriteStream(`aa.mp4`);
-// const urlParts = tiktok_url.split("/");
-// let id = urlParts[urlParts.length - 1];        
-// if(id.includes("?")) id = id.split("?")[0];
-
-// const file = fs.createWriteStream(`${id}.mp4`);
-// getTiktokUrls(tiktok_url)
-//     .then(urls => {
-//         // console.log(urls)
-//         const request = https.get(urls, function(response) {
-//             response.pipe(file);
-            
-//           });
-//     })
-//     .catch(error => {
-//         console.error(error);
-//     });
-
-
 
 class TiktokDownloader {
   constructor() {
@@ -110,4 +64,30 @@ class TiktokDownloader {
   }
 }
 
-module.exports = TiktokDownloader;
+async function dlsend(message, tiktok_url) {
+  try {
+    const urlParts = tiktok_url.split("/");
+    const tiktokDownloader = new TiktokDownloader();
+    let id = urlParts[urlParts.length - 1];
+    if (id.includes("?")) {
+      id = id.split("?")[0];
+    }
+    const namefile = id + '.mp4';
+    await tiktokDownloader.downloadTiktokVideo(tiktok_url);
+    const media = MessageMedia.fromFilePath('./' + namefile);
+    await message.reply(media);
+    console.log('Downloaded and sent the TikTok video.');
+
+    try {
+      fs.unlinkSync(namefile)
+      //file removed
+  } catch (err) {
+      console.error(err)
+  }
+  } catch (error) {
+    console.error('Error:', error);
+    await message.reply(error);
+  }
+}
+// module.exports = TiktokDownloader;
+module.exports = { dlsend }
