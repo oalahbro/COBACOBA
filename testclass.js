@@ -5,14 +5,16 @@ const urlRegex = require("url-regex");
 const fetch = require("node-fetch");
 const https = require('https');
 const fs = require('fs');
+const mime = require('mime-types');
 const { MessageMedia } = require('whatsapp-web.js');
 const { url } = require("inspector");
 const { dlsend } = require('./tiktokDownloader'); 
+const { sticker } = require('./sticker'); 
 
 
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: { headless: false,executablePath: 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe' }
+    puppeteer: { headless: true,executablePath: 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe' }
   
   });
 
@@ -33,6 +35,26 @@ const client = new Client({
 
   client.on('message', async message => {
     let chat = await message.getChat();
+    chat.sendSeen();
+
+    if(message.body.startsWith('/sticker')){
+      const commandParts = message.body.split(' ');
+      if (commandParts.length === 1) {
+        const defaultStickerText = "Oalah-BOT";
+        const stickerParts = [defaultStickerText];
+        await sticker(message, chat, stickerParts);
+      }
+      if (commandParts.length >= 2) {
+        const stickerText = commandParts[1];
+        const stickerParts = stickerText.split('|');
+        await sticker(message,chat, stickerParts);
+        }
+      }
+    })
+
+  client.on('message', async message => {
+    
+    let chat = await message.getChat();
     await chat.sendSeen();
   
     if (message.body.includes('/tt')) {
@@ -51,3 +73,5 @@ const client = new Client({
       }
     }
   });
+
+  
