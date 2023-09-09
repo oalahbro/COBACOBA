@@ -9,6 +9,7 @@ const mime = require('mime-types');
 const { MessageMedia } = require('whatsapp-web.js');
 const { url } = require("inspector");
 const { dlsend } = require('./tiktokDownloader'); 
+const { dlsendmp3 } = require('./tiktokDownloaderMp3'); 
 const { sticker } = require('./sticker'); 
 
 
@@ -57,7 +58,7 @@ const client = new Client({
     let chat = await message.getChat();
     await chat.sendSeen();
   
-    if (message.body.includes('/tt')) {
+    if (message.body.startsWith('/tt')) {
       const parts = message.body.split(' ');
       const urlRegex = /(https?:\/\/[^\s]+)/;
       let tiktok_url = null;
@@ -70,6 +71,28 @@ const client = new Client({
       }
       if (tiktok_url) {
         await dlsend(message, tiktok_url);
+      }
+    }
+  });
+
+  client.on('message', async message => {
+    
+    let chat = await message.getChat();
+    await chat.sendSeen();
+  
+    if (message.body.startsWith('/mp3tt')) {
+      const parts = message.body.split(' ');
+      const urlRegex = /(https?:\/\/[^\s]+)/;
+      let tiktok_url = null;
+
+      for (const part of parts) {
+        if (urlRegex.test(part)) {
+          tiktok_url = part;
+          break; // Stop when the first URL is found
+        }
+      }
+      if (tiktok_url) {
+        await dlsendmp3(message, tiktok_url);
       }
     }
   });

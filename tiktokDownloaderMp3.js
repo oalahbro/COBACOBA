@@ -1,9 +1,9 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const { TiktokDL } = require("@tobyg74/tiktok-api-dl")
 const urlRegex = require("url-regex");
 const fetch = require("node-fetch");
 const https = require('https');
 const fs = require('fs');
+const ffmpeg = require('fluent-ffmpeg');
 const { MessageMedia } = require('whatsapp-web.js');
 
 class TiktokDownloader {
@@ -62,7 +62,7 @@ class TiktokDownloader {
   }
 }
 
-async function dlsend(message, tiktok_url) {
+async function dlsendmp3(message, tiktok_url) {
   try {
     const urlParts = tiktok_url.split("/");
     const tiktokDownloader = new TiktokDownloader();
@@ -72,20 +72,32 @@ async function dlsend(message, tiktok_url) {
     }
     const namefile =`./tmp/${id}.mp4`;
     await tiktokDownloader.downloadTiktokVideo(tiktok_url);
-    const media = MessageMedia.fromFilePath(namefile);
-    await message.reply(media);
-    console.log('Downloaded and sent the TikTok video.');
 
-    try {
+    const outputPath = `./tmp/${id}.mp3`;
+
+    const command = ffmpeg();
+    
+    command.input(namefile);
+    
+    command.audioCodec('libmp3lame');
+    
+    command.output(outputPath);
+    
+    // Run the command and handle errors
+    command.on('end', () => {
+      console.log('Conversion finished.');
+      const media = MessageMedia.fromFilePath(outputPath);
+      message.reply(media);
+      console.log('Downloaded and sent the TikTok MP3.');
       fs.unlinkSync(namefile)
-      //file removed
-  } catch (err) {
-      console.error(err)
-  }
+    }).on('error', (err) => {
+      console.error('Error:', err);
+    }).run();
+    
   } catch (error) {
     console.error('Error:', error);
     await message.reply(error);
   }
 }
 // module.exports = TiktokDownloader;
-module.exports = { dlsend }
+module.exports = { dlsendmp3 }
