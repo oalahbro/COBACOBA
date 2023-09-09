@@ -72,9 +72,9 @@ async function dlsend(message, tiktok_url) {
     if (id.includes("?")) {
       id = id.split("?")[0];
     }
-    const namefile = id + '.mp4';
+    const namefile ="./tmp/"+ id + '.mp4';
     await tiktokDownloader.downloadTiktokVideo(tiktok_url);
-    const media = MessageMedia.fromFilePath('./' + namefile);
+    const media = MessageMedia.fromFilePath('./tmp/' + namefile);
     await message.reply(media);
     console.log('Downloaded and sent the TikTok video.');
 
