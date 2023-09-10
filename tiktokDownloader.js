@@ -6,6 +6,22 @@ const https = require('https');
 const fs = require('fs');
 const { MessageMedia } = require('whatsapp-web.js');
 
+
+
+const generateRandomString = (myLength) => {
+  const chars =
+      "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890";
+  const randomArray = Array.from(
+      { length: myLength },
+      (v, k) => chars[Math.floor(Math.random() * chars.length)]
+  );
+
+  const randomString = randomArray.join("");
+  return randomString;
+};
+
+var id = generateRandomString(5);
+
 class TiktokDownloader {
   constructor() {
     // You can initialize any class-level properties here
@@ -28,10 +44,10 @@ class TiktokDownloader {
     }
   }
 
-  async downloadTiktokVideo(tiktok_url) {
+  async downloadTiktokVideo(tiktok_url, id) {
     return new Promise(async (resolve, reject) => {
       const urlParts = tiktok_url.split("/");
-      let id = urlParts[urlParts.length - 1];
+      // let id = urlParts[urlParts.length - 1];
       if (id.includes("?")) id = id.split("?")[0];
 
       const filename = `./tmp/${id}.mp4`;
@@ -66,12 +82,12 @@ async function dlsend(message, tiktok_url) {
   try {
     const urlParts = tiktok_url.split("/");
     const tiktokDownloader = new TiktokDownloader();
-    let id = urlParts[urlParts.length - 1];
+    // let id = urlParts[urlParts.length - 1];
     if (id.includes("?")) {
       id = id.split("?")[0];
     }
     const namefile =`./tmp/${id}.mp4`;
-    await tiktokDownloader.downloadTiktokVideo(tiktok_url);
+    await tiktokDownloader.downloadTiktokVideo(tiktok_url,id);
     const media = MessageMedia.fromFilePath(namefile);
     await message.reply(media);
     console.log('Downloaded and sent the TikTok video.');
