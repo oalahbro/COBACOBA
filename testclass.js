@@ -11,6 +11,7 @@ const { url } = require("inspector");
 const { dlsend } = require('./tiktokDownloader'); 
 const { dlsendmp3 } = require('./tiktokDownloaderMp3'); 
 const { sticker } = require('./sticker'); 
+const ping = require('ping');
 
 
 const client = new Client({
@@ -34,6 +35,8 @@ const client = new Client({
     console.log('Client is ready!');
   });
 
+
+  //sticker
   client.on('message', async message => {
     let chat = await message.getChat();
     chat.sendSeen();
@@ -53,7 +56,9 @@ const client = new Client({
       }
     })
 
-  client.on('message', async message => {
+
+    //tiktokdl
+    client.on('message', async message => {
     
     let chat = await message.getChat();
     await chat.sendSeen();
@@ -75,8 +80,9 @@ const client = new Client({
     }
   });
 
+
+  //ttmp3
   client.on('message', async message => {
-    
     let chat = await message.getChat();
     await chat.sendSeen();
   
@@ -97,4 +103,29 @@ const client = new Client({
     }
   });
 
+  //ping
+  client.on('message', async message => {
+    let chat = await message.getChat();
+    await chat.sendSeen();
+  
+    if (message.body.startsWith('/ping')) {
+      const host = '8.8.8.8';
+  
+      // Wrap the ping operation in a Promise for asynchronous handling
+      const pingPromise = new Promise((resolve) => {
+        ping.sys.probe(host, (isAlive, response) => {
+          if (isAlive) {
+            const result = `alive (${response.time} ms)`;
+            resolve(result);
+          } else {
+            const result = 'dead';
+            resolve(result);
+          }
+        });
+      });
+  
+      const pingResult = await pingPromise;
+      await message.reply(`Ping result for ${host}: ${pingResult}`);
+    }
+  });
   

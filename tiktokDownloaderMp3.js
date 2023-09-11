@@ -6,6 +6,20 @@ const fs = require('fs');
 const ffmpeg = require('fluent-ffmpeg');
 const { MessageMedia } = require('whatsapp-web.js');
 
+const generateRandomString = (myLength) => {
+  const chars =
+      "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890";
+  const randomArray = Array.from(
+      { length: myLength },
+      (v, k) => chars[Math.floor(Math.random() * chars.length)]
+  );
+
+  const randomString = randomArray.join("");
+  return randomString;
+};
+
+var id = generateRandomString(5);
+
 class TiktokDownloader {
   constructor() {
     // You can initialize any class-level properties here
@@ -28,10 +42,10 @@ class TiktokDownloader {
     }
   }
 
-  async downloadTiktokVideo(tiktok_url) {
+  async downloadTiktokVideo(tiktok_url, id) {
     return new Promise(async (resolve, reject) => {
       const urlParts = tiktok_url.split("/");
-      let id = urlParts[urlParts.length - 1];
+      // let id = urlParts[urlParts.length - 1];
       if (id.includes("?")) id = id.split("?")[0];
 
       const filename = `./tmp/${id}.mp4`;
@@ -66,7 +80,7 @@ async function dlsendmp3(message, tiktok_url) {
   try {
     const urlParts = tiktok_url.split("/");
     const tiktokDownloader = new TiktokDownloader();
-    let id = urlParts[urlParts.length - 1];
+    // let id = urlParts[urlParts.length - 1];
     if (id.includes("?")) {
       id = id.split("?")[0];
     }
@@ -74,16 +88,11 @@ async function dlsendmp3(message, tiktok_url) {
     await tiktokDownloader.downloadTiktokVideo(tiktok_url);
 
     const outputPath = `./tmp/${id}.mp3`;
-
     const command = ffmpeg();
-    
     command.input(namefile);
-    
     command.audioCodec('libmp3lame');
-    
     command.output(outputPath);
     
-    // Run the command and handle errors
     command.on('end', () => {
       console.log('Conversion finished.');
       const media = MessageMedia.fromFilePath(outputPath);
@@ -99,5 +108,5 @@ async function dlsendmp3(message, tiktok_url) {
     await message.reply(error);
   }
 }
-// module.exports = TiktokDownloader;
+
 module.exports = { dlsendmp3 }

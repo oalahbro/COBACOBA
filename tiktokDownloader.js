@@ -1,12 +1,9 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const { TiktokDL } = require("@tobyg74/tiktok-api-dl")
 const urlRegex = require("url-regex");
 const fetch = require("node-fetch");
 const https = require('https');
 const fs = require('fs');
 const { MessageMedia } = require('whatsapp-web.js');
-
-
 
 const generateRandomString = (myLength) => {
   const chars =
@@ -103,5 +100,5 @@ async function dlsend(message, tiktok_url) {
     await message.reply(error);
   }
 }
-// module.exports = TiktokDownloader;
+
 module.exports = { dlsend }
