@@ -40,96 +40,46 @@ const client = new Client({
       fs.mkdirSync(mediaPath);
   }
 
-  //sticker
-  client.on('message', async message => {
+  client.on('message', async (message) => {
     let chat = await message.getChat();
     chat.sendSeen();
-
-    if(message.body.startsWith('/sticker')){
-      const commandParts = message.body.split(' ');
-      if (commandParts.length === 1) {
-        const defaultStickerText = "Oalah-BOT";
-        const stickerParts = [defaultStickerText];
-        await sticker(message, chat, stickerParts);
-      }
-      if (commandParts.length >= 2) {
-        const stickerText = commandParts[1];
-        const stickerParts = stickerText.split('|');
-        await sticker(message,chat, stickerParts);
-        }
-      }
-    })
-
-
-    //tiktokdl
-    client.on('message', async message => {
-    
-    let chat = await message.getChat();
-    await chat.sendSeen();
   
-    if (message.body.startsWith('/tt')) {
-      const parts = message.body.split(' ');
-      const urlRegex = /(https?:\/\/[^\s]+)/;
-      let tiktok_url = null;
-
-      for (const part of parts) {
-        if (urlRegex.test(part)) {
-          tiktok_url = part;
-          break; // Stop when the first URL is found
-        }
-      }
-      if (tiktok_url) {
-        await dlsend(message, tiktok_url);
-      }
+    const command = message.body.split(' ')[0];
+  
+    switch (command) {
+      case '/sticker':
+      case '/Sticker':
+      case '/s':
+        const stickerParts = message.body.split('|');
+        await sticker(message, chat, stickerParts);
+        break;
+  
+      case '/tt':
+        await handleTikTokCommand(message, chat, true);
+        break;
+  
+      case '/mp3tt':
+        await handleTikTokCommand(message, chat, false);
+        break;
     }
   });
-
-
-  //ttmp3
-  client.on('message', async message => {
-    let chat = await message.getChat();
-    await chat.sendSeen();
   
-    if (message.body.startsWith('/mp3tt')) {
-      const parts = message.body.split(' ');
-      const urlRegex = /(https?:\/\/[^\s]+)/;
-      let tiktok_url = null;
-
-      for (const part of parts) {
-        if (urlRegex.test(part)) {
-          tiktok_url = part;
-          break; // Stop when the first URL is found
-        }
+  async function handleTikTokCommand(message, chat, isVideo) {
+    const parts = message.body.split(' ');
+    const urlRegex = /(https?:\/\/[^\s]+)/;
+    let tiktok_url = null;
+  
+    for (const part of parts) {
+      if (urlRegex.test(part)) {
+        tiktok_url = part;
+        break; // Stop when the first URL is found
       }
-      if (tiktok_url) {
+    }
+    if (tiktok_url) {
+      if (isVideo) {
+        await dlsend(message, tiktok_url);
+      } else {
         await dlsendmp3(message, tiktok_url);
       }
     }
-  });
-
-  //ping
-  client.on('message', async message => {
-    let chat = await message.getChat();
-    await chat.sendSeen();
-  
-    if (message.body.startsWith('/ping')) {
-      const host = '8.8.8.8';
-  
-      // Wrap the ping operation in a Promise for asynchronous handling
-      const pingPromise = new Promise((resolve) => {
-        ping.sys.probe(host, (isAlive, response) => {
-          if (isAlive) {
-            const result = `alive (${response.time} ms)`;
-            resolve(result);
-          } else {
-            const result = 'dead';
-            resolve(result);
-          }
-        });
-      });
-  
-      const pingResult = await pingPromise;
-      await message.reply(`Ping result for ${host}: ${pingResult}`);
-    }
-  });
-  
+  }
