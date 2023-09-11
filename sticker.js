@@ -11,9 +11,6 @@ const mime = require('mime-types');
         message.downloadMedia().then(media => {
             if (media) {
                 const mediaPath = './tmp/';
-                if (!fs.existsSync(mediaPath)) {
-                    fs.mkdirSync(mediaPath);
-                }
                 const extension = mime.extension(media.mimetype);
                 const filename = new Date().getTime();
                 const filename1 = mediaPath + filename + '.' + extension;

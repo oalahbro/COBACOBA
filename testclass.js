@@ -35,6 +35,10 @@ const client = new Client({
     console.log('Client is ready!');
   });
 
+  const mediaPath = './tmp/';
+  if (!fs.existsSync(mediaPath)) {
+      fs.mkdirSync(mediaPath);
+  }
 
   //sticker
   client.on('message', async message => {
