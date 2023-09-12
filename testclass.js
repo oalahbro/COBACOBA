@@ -1,6 +1,5 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const { MessageMedia } = require('whatsapp-web.js');
 const { dlsend } = require('./tiktokDownloader');
 const { dlsendmp3 } = require('./tiktokDownloaderMp3');
 const { sticker } = require('./sticker');
@@ -25,55 +24,68 @@ client.on('ready', () => {
   console.log('Client is ready!');
 });
 
-client.on('message', async message => {
+client.on('message', async (message) => {
   let chat = await message.getChat();
   chat.sendSeen();
 
-  if (message.body.startsWith('/sticker') || message.body.startsWith('/s')) {
-    const commandParts = message.body.split(' ');
-    if (commandParts.length === 1) {
-      const defaultStickerText = "Oalah-BOT";
-      const stickerParts = [defaultStickerText];
-      await sticker(message, chat, stickerParts);
-    }
-    if (commandParts.length >= 2) {
-      const stickerText = commandParts[1];
-      const stickerParts = stickerText.split('|');
-      await sticker(message, chat, stickerParts);
-    }
-  }
+  const commandParts = message.body.split(' ');
+  const command = commandParts[0].toLowerCase();
 
-  if (message.body.startsWith('/tt')) {
-    const parts = message.body.split(' ');
-    const urlRegex = /(https?:\/\/[^\s]+)/;
-    let tiktok_url = null;
+  switch (command) {
+    case '/sticker':
+    case '/s':
+      handleSticker(message, chat, commandParts);
+      break;
 
-    for (const part of parts) {
-      if (urlRegex.test(part)) {
-        tiktok_url = part;
-        break; // Stop when the first URL is found
-      }
-    }
-    if (tiktok_url) {
-      await dlsend(message, tiktok_url);
-    }
-  }
+    case '/tt':
+      handleTikTok(message, chat, commandParts);
+      break;
 
-  if (message.body.startsWith('/mp3tt')) {
-    const parts = message.body.split(' ');
-    const urlRegex = /(https?:\/\/[^\s]+)/;
-    let tiktok_url = null;
-
-    for (const part of parts) {
-      if (urlRegex.test(part)) {
-        tiktok_url = part;
-        break; // Stop when the first URL is found
-      }
-    }
-    if (tiktok_url) {
-      await dlsendmp3(message, tiktok_url);
-    }
+    case '/mp3tt':
+      handleTikTokMP3(message, chat, commandParts);
+      break;
   }
 });
 
-//module.exports = { client };
+async function handleSticker(message, chat, commandParts) {
+  if (commandParts.length === 1) {
+    const defaultStickerText = "Oalah-BOT";
+    const stickerParts = [defaultStickerText];
+    await sticker(message, chat, stickerParts);
+  }
+  if (commandParts.length >= 2) {
+    const stickerText = commandParts[1];
+    const stickerParts = stickerText.split('|');
+    await sticker(message, chat, stickerParts);
+  }
+}
+
+async function handleTikTok(message, chat, commandParts) {
+  const urlRegex = /(https?:\/\/[^\s]+)/;
+  let tiktok_url = null;
+
+  for (const part of commandParts) {
+    if (urlRegex.test(part)) {
+      tiktok_url = part;
+      break;
+    }
+  }
+  if (tiktok_url) {
+    await dlsend(message, tiktok_url);
+  }
+}
+
+async function handleTikTokMP3(message, chat, commandParts) {
+  const urlRegex = /(https?:\/\/[^\s]+)/;
+  let tiktok_url = null;
+
+  for (const part of commandParts) {
+    if (urlRegex.test(part)) {
+      tiktok_url = part;
+      break;
+    }
+  }
+  if (tiktok_url) {
+    await dlsendmp3(message, tiktok_url);
+  }
+}
