@@ -30,12 +30,26 @@ client.on('message', async (message) => {
 
   const commandParts = message.body.split(' ');
   const command = commandParts[0].toLowerCase();
-
   switch (command) {
     case '/sticker':
     case '/s':
-      handleSticker(message, chat, commandParts);
-      break;
+      if (commandParts.length === 1) {
+        const defaultStickerText = "Oalah-BOT";
+        const stickerParts = [defaultStickerText];
+        await sticker(message, chat, stickerParts);
+      } else if (commandParts.length >= 2) {
+        const stickerText = commandParts.slice(1).join(' ');
+        const stickerParts = stickerText.split('|');
+        await sticker(message, chat, stickerParts);
+      }
+
+      if (message.body === command) {
+        if (message.hasQuotedMsg) {
+          const quotedMsg = await message.getQuotedMessage();
+          const mediaMessage = await quotedMsg.downloadMedia();
+          await chat.sendMessage(mediaMessage, { sendMediaAsSticker: true });
+        }
+      }
 
     case '/tt':
       handleTikTok(message, chat, commandParts);
@@ -44,6 +58,15 @@ client.on('message', async (message) => {
     case '/mp3tt':
       handleTikTokMP3(message, chat, commandParts);
       break;
+    default:
+      if (message.body === 'sticker' || message.body === 'Sticker') {
+        if (message.hasQuotedMsg) {
+          const quotedMsg = await message.getQuotedMessage();
+          const mediaMessage = await quotedMsg.downloadMedia();
+          await chat.sendMessage(mediaMessage, { sendMediaAsSticker: true });
+        }
+      }
+
   }
 });
 
