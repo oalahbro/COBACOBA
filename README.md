@@ -65,7 +65,6 @@ node index.js
 | -------------------------------------------- | ---------------------------------------------------- |
 | `+kategori nominal deskripsi`                | Catat pengeluaran. Contoh: `+makan siang 25000 ayam` |
 | `ringkasan hari ini`                         | Lihat pengeluaran hari ini                           |
-| `target nominal_target bulan tahun`          | Atur target tabungan                                 |
 | `set income nominal_income nominal_tabungan` | Atur income bulanan + target tabungan                |
 | `hapus pengeluaran`                          | Lihat daftar pengeluaran → reply nomor untuk hapus   |
 
