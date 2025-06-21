@@ -6,7 +6,6 @@ Bot WhatsApp untuk manajemen pengeluaran harian, income bulanan, dan target tabu
 
 * ✅ Catat pengeluaran via chat WhatsApp
 * 📅 Ringkasan pengeluaran harian
-* 🌟 Atur target tabungan bulanan
 * 💰 Income bulanan + hitung otomatis pengeluaran maksimal harian
 * ⚠️ Peringatan jika pengeluaran harian melebihi batas
 * 📂 Hapus pengeluaran via reply nomor urut
