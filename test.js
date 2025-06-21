@@ -17,37 +17,18 @@ async function testGoogleSheets() {
 
     console.log("✅ Google Sheets Connected");
     console.log("Title:", doc.title);
+    
+    const sheet = doc.sheetsByIndex[2]; // or use `doc.sheetsById[id]` or `doc.sheetsByTitle[title]`
+    console.log(sheet.title);
+    const rows = await sheet.getRows();
+    rows[1].assign({ MaxHarian: '50000', TargetTabungan: '1000' })
+    await rows[1].save(); // save updates on a row
+
   } catch (error) {
     console.error("❌ Error connecting to Google Sheets:", error);
   }
 }
 
-async function testOpenAI() {
-  try {
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-4o",
-        messages: [{ role: "user", content: "Halo, apakah koneksi OpenAI berhasil?" }],
-        temperature: 0.3,
-        max_tokens: 100,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    console.log("✅ OpenAI Connected");
-    console.log("Response:", response.data.choices[0].message.content.trim());
-  } catch (error) {
-    console.error("❌ Error connecting to OpenAI:", error.response?.data || error);
-  }
-}
-
 (async () => {
   await testGoogleSheets();
-  await testOpenAI();
 })();

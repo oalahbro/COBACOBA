@@ -2,7 +2,7 @@ require("dotenv").config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require("baileys");
 const pino = require("pino");
 const schedule = require("node-schedule");
-const { appendTransaksi, getTarget, setTarget, laporanHariIni, overwriteTarget, hapusTransaksiRow, setIncome, getIncomeData, } = require("./googleSheet");
+const { appendTransaksi, getTarget, laporanHariIni, hapusTransaksiRow, setIncome, getIncomeData, } = require("./googleSheet");
 const { analisisAI } = require("./aiReport");
 const qrcode = require("qrcode-terminal");
 const pendingConfirmations = {}; // key = user, value = { total, bulan, tahun }
@@ -51,69 +51,58 @@ sock.ev.on("connection.update", (update) => {
     const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
     try {
-        if (pendingConfirmations[sender]) {
-        const response = text.toLowerCase();
+        // if (pendingConfirmations[sender]) {
+        // const response = text.toLowerCase();
 
-        if (response === "ya") {
-            const { total, bulan, tahun } = pendingConfirmations[sender];
-            await overwriteTarget(sender, total, bulan, tahun);
-            await sock.sendMessage(sender, { text: `✅ Target untuk ${bulan}/${tahun} berhasil diganti.` });
-        } else if (response === "tidak") {
-            await sock.sendMessage(sender, { text: `❌ Perubahan target dibatalkan.` });
-        }
+        // if (response === "ya") {
+        //     const { total, bulan, tahun } = pendingConfirmations[sender];
+        //     await overwriteTarget(sender, total, bulan, tahun);
+        //     await sock.sendMessage(sender, { text: `✅ Target untuk ${bulan}/${tahun} berhasil diganti.` });
+        // } else if (response === "tidak") {
+        //     await sock.sendMessage(sender, { text: `❌ Perubahan target dibatalkan.` });
+        // }
 
-        delete pendingConfirmations[sender]; // hapus konfirmasi setelah dijawab
-        return;
-    // }
-    //     else if (text.startsWith("+")) {
-    //       const parts = text.substring(1).split(" ");
-    //       const kategori = parts[0] || "Umum";
-    //       const nominal = parseFloat(parts[1] || "0");
-    //       const deskripsi = parts.slice(2).join(" ") || "-";
+        // delete pendingConfirmations[sender]; // hapus konfirmasi setelah dijawab
+        // return;
 
-    //       // Panggil fungsi appendTransaksi, modifikasi biar return ID
-    //       const transaksi = await appendTransaksi(sender, kategori, nominal, deskripsi);
-    //       await sock.sendMessage(sender, {
-    //         text: `✅ Pengeluaran dicatat:\n${kategori} - Rp${nominal} (${deskripsi})\n🆔 : ${transaksi.ID}`,
-    //       });
-        
-      } else if (text.toLowerCase() === "ringkasan hari ini") {
+      // } 
+      if (text.toLowerCase() === "ringkasan hari ini") {
         const data = await laporanHariIni(sender);
         const total = data.reduce((acc, item) => acc + parseFloat(item.Nominal), 0);
         let summary = data.map((r) => `• ${r.Kategori} - Rp${r.Nominal} (${r.Deskripsi})`).join("\n");
         summary = summary || "Tidak ada transaksi hari ini.";
         await sock.sendMessage(sender, { text: `📅 Ringkasan Hari Ini:\n${summary}\n\nTotal: Rp${total}` });
 
-      } else if (text.toLowerCase().startsWith("target ")) {
-        const [, total, bulan, tahun] = text.split(" ");
-        const result = await setTarget(sender, parseFloat(total), parseInt(bulan), parseInt(tahun), (msg) =>
-            sock.sendMessage(sender, { text: msg })
-        );
+    //   } else if (text.toLowerCase().startsWith("target ")) {
+    //     const [, total, bulan, tahun] = text.split(" ");
+    //     const result = await setTarget(sender, parseFloat(total), parseInt(bulan), parseInt(tahun), (msg) =>
+    //         sock.sendMessage(sender, { text: msg })
+    //     );
 
-        if (result === "EXISTS") {
-            pendingConfirmations[sender] = {
-        total: parseFloat(total),
-        bulan: parseInt(bulan),
-        tahun: parseInt(tahun),
-      };
-      await sock.sendMessage(sender, { text: "❓ Kirim *ya* untuk konfirmasi ganti target. *tidak* untuk membatalkan" });
-    }
-      return;
+    //     if (result === "EXISTS") {
+    //         pendingConfirmations[sender] = {
+    //     total: parseFloat(total),
+    //     bulan: parseInt(bulan),
+    //     tahun: parseInt(tahun),
+    //   };
+    //   await sock.sendMessage(sender, { text: "❓ Kirim *ya* untuk konfirmasi ganti target. *tidak* untuk membatalkan" });
+    // }
+    //   return;
 
-    } else if (text.toLowerCase() === "progress target") {
-        const target = await getTarget(sender);
-        if (!target) return await sock.sendMessage(sender, { text: "❗ Anda belum menetapkan target." });
+    // } else if (text.toLowerCase() === "progress target") {
+    //     const target = await getTarget(sender);
+    //     if (!target) return await sock.sendMessage(sender, { text: "❗ Anda belum menetapkan target." });
 
-        const data = await laporanHariIni(sender);
-        const total = data.reduce((acc, item) => acc + parseFloat(item.Nominal), 0);
-        const now = new Date();
-        const sisaBulan = (parseInt(target.TahunAkhir) - now.getFullYear()) * 12 + (parseInt(target.BulanAkhir) - (now.getMonth() + 1));
-        const sisaTabungan = parseFloat(target.TotalTarget) - total;
-        const tabunganPerBulan = (sisaTabungan / Math.max(sisaBulan, 1)).toFixed(0);
+    //     const data = await laporanHariIni(sender);
+    //     const total = data.reduce((acc, item) => acc + parseFloat(item.Nominal), 0);
+    //     const now = new Date();
+    //     const sisaBulan = (parseInt(target.TahunAkhir) - now.getFullYear()) * 12 + (parseInt(target.BulanAkhir) - (now.getMonth() + 1));
+    //     const sisaTabungan = parseFloat(target.TotalTarget) - total;
+    //     const tabunganPerBulan = (sisaTabungan / Math.max(sisaBulan, 1)).toFixed(0);
 
-        await sock.sendMessage(sender, {
-          text: `🎯 Target Anda: Rp${target.TotalTarget}\n💰 Terkumpul: Rp${total}\n📅 Sisa waktu: ${sisaBulan} bulan\n💸 Nabung per bulan: Rp${tabunganPerBulan}`
-        });
+    //     await sock.sendMessage(sender, {
+    //       text: `🎯 Target Anda: Rp${target.TotalTarget}\n💰 Terkumpul: Rp${total}\n📅 Sisa waktu: ${sisaBulan} bulan\n💸 Nabung per bulan: Rp${tabunganPerBulan}`
+    //     });
 
     } else if (text.toLowerCase() === "hapus pengeluaran") {
         const data = await laporanHariIni(sender);
@@ -187,35 +176,41 @@ sock.ev.on("connection.update", (update) => {
     }
 
     else if (text.startsWith("+")) {
-      const parts = text.substring(1).split(" ");
-      const kategori = parts[0] || "Umum";
-      const nominal = parseFloat(parts[1] || "0");
-      const deskripsi = parts.slice(2).join(" ") || "-";
+      const parts = text.substring(1).trim().split(" ");
+      const indexNominal = parts.findIndex((p) => /^\d+$/.test(p));
 
-      const incomeData = await getIncomeData(sender);
-      console.log(incomeData);
-      let alertShown = false;
-
-      if (incomeData && incomeData.MaxHarian) {
-        const maxHarian = parseFloat(incomeData.MaxHarian || 0);
-        const today = new Date().toISOString().slice(0, 10);
-        const transaksiHariIni = await laporanHariIni(sender);
-        const totalHariIni = transaksiHariIni.reduce((acc, r) => acc + parseFloat(r.Nominal || 0), 0);
-        if (totalHariIni + nominal > maxHarian) {
-          
-          await sock.sendMessage(sender, {
-            text: `⚠️ Pengeluaran melebihi batas harian!\n💸 Batas: Rp${maxHarian.toLocaleString()}\n📅 Hari ini: Rp${totalHariIni.toLocaleString()}\n🛒 Yang akan dicatat: Rp${nominal.toLocaleString()}`
-          });
-          alertShown = true;
-        }
+      if (indexNominal === -1) {
+        await sock.sendMessage(sender, { text: "❗ Format tidak valid. Contoh: +kategori nominal deskripsi" });
+        return;
       }
 
-      await appendTransaksi(sender, kategori, nominal, deskripsi);
-      await sock.sendMessage(sender, {
-        text: `✅ Pengeluaran dicatat:\n${kategori} - Rp${nominal.toLocaleString()} (${deskripsi})${alertShown ? "\n⚠️ Perhatikan batas harian Anda!" : ""}`
-      });
-    }
+      const kategori = parts.slice(0, indexNominal).join(" ") || "Umum";
+      const nominal = parseFloat(parts[indexNominal]);
+      const deskripsi = parts.slice(indexNominal + 1).join(" ") || "-";
 
+      const incomeData = await getIncomeData(sender);
+      if (!incomeData) {
+        await sock.sendMessage(sender, {
+          text: `⚠️ Anda belum mengatur income untuk bulan ini.\nGunakan perintah *set income <nominal> tabungan <target_tabungan>* untuk mengatur.`
+        });
+        return; // stop di sini
+      }
+    
+      // Jika income ada → lanjut cek batas harian
+      const maxHarian = parseFloat(incomeData.MaxHarian || "0");
+      const transaksiHariIni = await laporanHariIni(sender);
+      const totalHariIni = transaksiHariIni.reduce((acc, r) => acc + parseFloat(r.Nominal || 0), 0);
+    
+      if (totalHariIni + nominal > maxHarian) {
+        await sock.sendMessage(sender, {
+          text: `⚠️ Pengeluaran melebihi batas harian!\nLimit: Rp${maxHarian}\nHari ini: Rp${totalHariIni}\nYang akan dicatat: Rp${nominal}`
+        });
+      }
+    
+      // Catat transaksi
+      await appendTransaksi(sender, kategori, nominal, deskripsi);
+      await sock.sendMessage(sender, { text: `✅ Pengeluaran dicatat:\n${kategori} - Rp${nominal} (${deskripsi})` });
+    }
 
     } catch (error) {
       console.error("❌ Error handling message:", error);
