@@ -1,1 +1,8 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Authentication folder
+auth/
+
+# Environment variables
+.env
