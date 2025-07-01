@@ -2,10 +2,46 @@ require("dotenv").config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require("baileys");
 const pino = require("pino");
 const schedule = require("node-schedule");
-const { appendTransaksi, getTarget, laporanHariIni, hapusTransaksiRow, setIncome, getIncomeData, } = require("./googleSheet");
-const { analisisAI } = require("./aiReport");
+const {initDoc, appendTransaksi, getTotalPengeluaranBulanIni, laporanHariIni, hapusTransaksiRow, setIncome, getIncomeData} = require("./googleSheet");
 const qrcode = require("qrcode-terminal");
-const pendingConfirmations = {}; // key = user, value = { total, bulan, tahun }
+const os = require("os");
+const axios = require("axios");
+const dayjs = require("dayjs");
+const customParseFormat = require("dayjs/plugin/customParseFormat");
+dayjs.extend(customParseFormat);
+
+async function broadcastReminderPengeluaran(sock) {
+  const doc = await initDoc();
+  const sheet = doc.sheetsByTitle["Income"];
+  const rows = await sheet.getRows();
+
+  const todayStr = dayjs().format("YYYY-MM-DD");
+
+  const userSudahDiingatkan = new Set();
+
+  for (const row of rows) {
+    const user = row.User || row._rawData[0];
+    const bulan = row.BulanAwal || row._rawData[1];
+
+    const isBulanIni = bulan === dayjs().format("YYYY-MM");
+    if (!isBulanIni || userSudahDiingatkan.has(user)) continue;
+
+    // Cek apakah user sudah input pengeluaran hari ini
+    const transaksiHariIni = await laporanHariIni(user, todayStr);
+    const totalTransaksi = transaksiHariIni.length;
+
+    if (totalTransaksi === 0) {
+      await sock.sendMessage(user, {
+        text: `👋 Hai! Kamu belum mencatat pengeluaran hari ini (${dayjs().format("DD-MM-YYYY")}).
+
+Ketik _+<kategori> <jumlah> <deskripsi>_ untuk mencatat.
+Contoh:
++ngopi 15000 kopi susu`
+      });
+      userSudahDiingatkan.add(user);
+    }
+  }
+}
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth");
@@ -38,7 +74,25 @@ sock.ev.on("connection.update", (update) => {
     console.log("✅ Connected to WhatsApp");
   }
 });
-
+function parseTanggalRingkasan(input) {
+  const formats = [
+    "DD-MM-YYYY",
+    "DD-MM-YY",
+    "DD-MM",
+    "DD/MM/YYYY",
+    "DD/MM/YY",
+    "DD/MM"
+  ];
+  for (const format of formats) {
+    const parsed = dayjs(input, format, true);
+    if (parsed.isValid()) {
+      // Jika tahun tidak ditulis, asumsikan tahun sekarang
+      const now = dayjs();
+      return parsed.year() === 2001 ? parsed.year(now.year()) : parsed;
+    }
+  }
+  return null;
+}
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
 // console.log("📩 Message received:", messages);
 
@@ -51,95 +105,205 @@ sock.ev.on("connection.update", (update) => {
     const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
     try {
-        // if (pendingConfirmations[sender]) {
-        // const response = text.toLowerCase();
+      if (["help", "?", "menu", "panduan"].includes(text.toLowerCase())) {
+        const helpMessage = `📘 *Panduan Penggunaan Bot Pengeluaran*
 
-        // if (response === "ya") {
-        //     const { total, bulan, tahun } = pendingConfirmations[sender];
-        //     await overwriteTarget(sender, total, bulan, tahun);
-        //     await sock.sendMessage(sender, { text: `✅ Target untuk ${bulan}/${tahun} berhasil diganti.` });
-        // } else if (response === "tidak") {
-        //     await sock.sendMessage(sender, { text: `❌ Perubahan target dibatalkan.` });
-        // }
+✅ *Tambah Pengeluaran*  
+Format:  
+· _+<kategori> <jumlah> <deskripsi>_  
+Contoh:  
+· +ngopi 15000 kopi susu  
+· +belanja bulanan 250000 indomaret
 
-        // delete pendingConfirmations[sender]; // hapus konfirmasi setelah dijawab
-        // return;
+📅 *Cek Ringkasan Pengeluaran*  
+• Hari ini:  
+· _ringkasan_  
+• Hari ini + X hari ke belakang (1–360):  
+· _ringkasan 3_  
+• Tanggal tertentu (format fleksibel):  
+· _ringkasan 05-06_  
+· _ringkasan 05/06/2024_
 
-      // } 
-      if (text.toLowerCase() === "ringkasan hari ini") {
-        const data = await laporanHariIni(sender);
-        const total = data.reduce((acc, item) => acc + parseFloat(item.Nominal), 0);
-        let summary = data.map((r) => `• ${r.Kategori} - Rp${r.Nominal} (${r.Deskripsi})`).join("\n");
-        summary = summary || "Tidak ada transaksi hari ini.";
-        await sock.sendMessage(sender, { text: `📅 Ringkasan Hari Ini:\n${summary}\n\nTotal: Rp${total}` });
+🗑️ *Hapus Pengeluaran*  
+• Untuk hari ini:  
+· _hapus pengeluaran_  
+• Untuk tanggal tertentu:  
+· _hapus pengeluaran <tanggal>_  
+Contoh:  
+· hapus pengeluaran 27-06-2025  
+· hapus pengeluaran 27/06  
+• Setelah daftar muncul, balas pesan tersebut dengan nomor transaksi  
+Contoh:  
+· 2
 
-    //   } else if (text.toLowerCase().startsWith("target ")) {
-    //     const [, total, bulan, tahun] = text.split(" ");
-    //     const result = await setTarget(sender, parseFloat(total), parseInt(bulan), parseInt(tahun), (msg) =>
-    //         sock.sendMessage(sender, { text: msg })
-    //     );
+💼 *Set Income & Target Tabungan*  
+(Hanya 1x per bulan)  
+Format:  
+· _set income <jumlah> tabungan <target_tabungan>_  
+Contoh:  
+· set income 5000000 tabungan 1500000
 
-    //     if (result === "EXISTS") {
-    //         pendingConfirmations[sender] = {
-    //     total: parseFloat(total),
-    //     bulan: parseInt(bulan),
-    //     tahun: parseInt(tahun),
-    //   };
-    //   await sock.sendMessage(sender, { text: "❓ Kirim *ya* untuk konfirmasi ganti target. *tidak* untuk membatalkan" });
-    // }
-    //   return;
+📊 *Cek Progress Tabungan*  
+· _progress tabungan_
 
-    // } else if (text.toLowerCase() === "progress target") {
-    //     const target = await getTarget(sender);
-    //     if (!target) return await sock.sendMessage(sender, { text: "❗ Anda belum menetapkan target." });
+✉️ Ketik *help* kapan saja untuk melihat panduan ini kembali.  
+🙏 Terima kasih telah menggunakan bot ini!`;
+        await sock.sendMessage(sender, { text: helpMessage });
+      }
+      else if (text.toLowerCase().startsWith("ringkasan")) {
+            const args = text.trim().split(" ");
+            const today = dayjs();
+            let allData = [];
+            let header = "📅 Ringkasan:";
 
-    //     const data = await laporanHariIni(sender);
-    //     const total = data.reduce((acc, item) => acc + parseFloat(item.Nominal), 0);
-    //     const now = new Date();
-    //     const sisaBulan = (parseInt(target.TahunAkhir) - now.getFullYear()) * 12 + (parseInt(target.BulanAkhir) - (now.getMonth() + 1));
-    //     const sisaTabungan = parseFloat(target.TotalTarget) - total;
-    //     const tabunganPerBulan = (sisaTabungan / Math.max(sisaBulan, 1)).toFixed(0);
+            // ringkasan (tanpa argumen): hanya hari ini
+            if (args.length === 1) {
+              const data = await laporanHariIni(sender, today.format("YYYY-MM-DD"));
+              allData = data;
+              header = `📅 Ringkasan: Hari ini (${today.format("DD/MM/YYYY")})`;
 
-    //     await sock.sendMessage(sender, {
-    //       text: `🎯 Target Anda: Rp${target.TotalTarget}\n💰 Terkumpul: Rp${total}\n📅 Sisa waktu: ${sisaBulan} bulan\n💸 Nabung per bulan: Rp${tabunganPerBulan}`
-    //     });
+            } else if (/^\d+$/.test(args[1])) {
+              // ringkasan <jumlah hari> → total hari ini + hari sebelumnya sebanyak X hari
+              const daysBack = parseInt(args[1]);
+              if (daysBack < 0 || daysBack > 360) {
+                await sock.sendMessage(sender, { text: "❗ Rentang hari harus antara 0 sampai 360." });
+                return;
+              }
 
-    } else if (text.toLowerCase() === "hapus pengeluaran") {
-        const data = await laporanHariIni(sender);
+              for (let i = 0; i <= daysBack; i++) {
+                const tanggal = today.subtract(i, "day").format("YYYY-MM-DD");
+                const data = await laporanHariIni(sender, tanggal);
+                allData.push(...data);
+              }
+              header = `📅 Ringkasan: ${daysBack} hari terakhir`;
+            } else {
+              // ringkasan <tanggal spesifik>
+              const tanggalRaw = args[1];
+              let parsed = dayjs(tanggalRaw, ["DD-MM-YYYY", "DD-MM-YY", "DD-MM", "DD/MM/YYYY", "DD/MM/YY", "DD/MM", "D/M", "D-M"], true);
+
+              if (parsed.isValid()) {
+                // Jika hanya DD-MM atau DD/MM, tambahkan tahun saat ini
+                if (tanggalRaw.match(/^(\d{1,2})[-/](\d{1,2})$/)) {
+                  parsed = parsed.set("year", today.year()); // ini penting!
+                }
+
+                const data = await laporanHariIni(sender, parsed.format("YYYY-MM-DD"));
+                allData = data;
+                header = `📅 Ringkasan: ${parsed.format("DD/MM/YYYY")}`;
+              } else {
+                await sock.sendMessage(sender, {
+                  text: "❗ Format tanggal tidak dikenali. Contoh: 05-06-2024, 05-06, atau 05/06/24."
+                });
+                return;
+              }
+            }
+
+            // Proses hasil
+            const total = allData.reduce((acc, item) => acc + parseFloat(item.Nominal || item._rawData?.[4] || 0), 0);
+            let summary = allData.map((r) => {
+              const kategori = r.Kategori || r._rawData?.[3] || "-";
+              const nominal = r.Nominal || r._rawData?.[4] || 0;
+              const deskripsi = r.Deskripsi || r._rawData?.[5] || "-";
+              return `• ${kategori} - Rp${nominal} (${deskripsi})`;
+            }).join("\n");
+
+            summary = summary || "Tidak ada transaksi.";
+
+            await sock.sendMessage(sender, {
+              text: `${header}\n${summary}\n\n💰 Total: Rp${total}`
+            });
+          }
+    else if (text.toLowerCase().startsWith("hapus pengeluaran")) {
+      const parts = text.trim().split(" ");
+
+      let tanggal = null;
+      if (parts.length >= 3) {
+        tanggal = parts.slice(2).join(" ");
+      }
+
+      if (tanggal) {
+        const parsed = dayjs(tanggal, ["DD-MM-YYYY", "DD-MM-YY", "DD-MM", "DD/MM/YYYY", "DD/MM/YY", "DD/MM", "D/M", "D-M"], true);
+
+        if (!parsed.isValid()) {
+          await sock.sendMessage(sender, { text: "❗ Format salah. Contoh: hapus pengeluaran 05-07-2024" });
+          return;
+        }
+
+        const data = await laporanHariIni(sender, parsed.format("YYYY-MM-DD"));
 
         if (data.length === 0) {
-          await sock.sendMessage(sender, { text: "⚠️ Tidak ada pengeluaran hari ini." });
+          await sock.sendMessage(sender, {
+            text: `⚠️ Tidak ada pengeluaran di tanggal ${parsed.format("DD-MM-YYYY")}.`
+          });
           return;
         }
 
         const list = data
-          .map((r, i) => `${i + 1}. ${r.Kategori} - Rp${r.Nominal} (${r.Deskripsi})`)
-          .join("\n");
+        .map((r, i) => {
+          const kategori = r.Kategori || r._rawData[3] || "-";
+          const nominal = r.Nominal || r._rawData[4] || "0";
+          const deskripsi = r.Deskripsi || r._rawData[5] || "-";
+          return `${i + 1}. ${kategori} - Rp${nominal} (${deskripsi})`;
+        })
+        .join("\n");
 
         await sock.sendMessage(sender, {
-          text: `🗑️ *Daftar Pengeluaran Hari Ini:*\n\n${list}\n\n➡️ *Balas pesan ini* dengan nomor transaksi untuk menghapus.`,
+          text: `🗑️ *Daftar Pengeluaran Tanggal ${parsed.format("DD-MM-YYYY")}:*\n\n${list}\n\n➡️ *Balas pesan ini* dengan nomor transaksi untuk menghapus.`
         });
         return;
       }
-      
+
+      // Default: hapus hari ini
+      const data = await laporanHariIni(sender);
+      if (data.length === 0) {
+        await sock.sendMessage(sender, { text: "⚠️ Tidak ada pengeluaran hari ini." });
+        return;
+      }
+
+      const list = data
+        .map((r, i) => {
+          const kategori = r.Kategori || r._rawData[3] || "-";
+          const nominal = r.Nominal || r._rawData[4] || "0";
+          const deskripsi = r.Deskripsi || r._rawData[5] || "-";
+          return `${i + 1}. ${kategori} - Rp${nominal} (${deskripsi})`;
+        })
+        .join("\n");
+
+      await sock.sendMessage(sender, {
+        text: `🗑️ *Daftar Pengeluaran Hari Ini:*\n\n${list}\n\n➡️ *Balas pesan ini* dengan nomor transaksi untuk menghapus.`
+      });
+    }
+
+
     else if (msg?.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-        const quoted = msg.message.extendedTextMessage.contextInfo.quotedMessage;
+      const quoted = msg.message.extendedTextMessage.contextInfo.quotedMessage;
 
-        let quotedText = "";
-        if (quoted.conversation) {
-          quotedText = quoted.conversation;
-        } else if (quoted.extendedTextMessage?.text) {
-          quotedText = quoted.extendedTextMessage.text;
-        }
+      let quotedText = "";
+      if (quoted.conversation) {
+        quotedText = quoted.conversation;
+      } else if (quoted.extendedTextMessage?.text) {
+        quotedText = quoted.extendedTextMessage.text;
+      }
 
-      if (quotedText.includes("Daftar Pengeluaran Hari Ini")) {
+      if (/Daftar Pengeluaran (Hari Ini|Tanggal )/i.test(quotedText)) {
         const nomor = parseInt(text.trim());
         if (isNaN(nomor)) {
           await sock.sendMessage(sender, { text: "❗ Format tidak valid. Contoh: 2" });
           return;
         }
 
-        const data = await laporanHariIni(sender);
+        // Ambil tanggal dari isi quoted
+        const matchTanggal = quotedText.match(/Tanggal (\d{2}[-/]\d{2}(?:[-/]\d{2,4})?)/);
+        let tanggalInput = null;
+
+        if (matchTanggal) {
+          const parsed = dayjs(matchTanggal[1], ["DD-MM-YYYY", "DD-MM-YY", "DD-MM", "DD/MM/YYYY", "DD/MM/YY", "DD/MM"]);
+          if (parsed.isValid()) {
+            tanggalInput = parsed.format("YYYY-MM-DD");
+          }
+        }
+
+        const data = await laporanHariIni(sender, tanggalInput);
         const transaksi = data[nomor - 1];
 
         if (!transaksi) {
@@ -149,8 +313,12 @@ sock.ev.on("connection.update", (update) => {
 
         const success = await hapusTransaksiRow(transaksi);
         if (success) {
+          const kategori = transaksi.Kategori || transaksi._rawData?.[3] || "-";
+          const nominal = transaksi.Nominal || transaksi._rawData?.[4] || 0;
+          const deskripsi = transaksi.Deskripsi || transaksi._rawData?.[5] || "-";
+
           await sock.sendMessage(sender, {
-            text: `✅ Transaksi berhasil dihapus:\n${transaksi.Kategori} - Rp${transaksi.Nominal} (${transaksi.Deskripsi})`
+            text: `✅ Transaksi berhasil dihapus:\n${kategori} - Rp${nominal} (${deskripsi})`
           });
         } else {
           await sock.sendMessage(sender, { text: `❗ Gagal menghapus transaksi.` });
@@ -174,42 +342,126 @@ sock.ev.on("connection.update", (update) => {
         sock.sendMessage(sender, { text: msg })
       );
     }
+    else if (text.toLowerCase().startsWith("progress tabungan")) {
+      const incomeData = await getIncomeData(sender);
 
-    else if (text.startsWith("+")) {
-      const parts = text.substring(1).trim().split(" ");
-      const indexNominal = parts.findIndex((p) => /^\d+$/.test(p));
-
-      if (indexNominal === -1) {
-        await sock.sendMessage(sender, { text: "❗ Format tidak valid. Contoh: +kategori nominal deskripsi" });
+      if (!incomeData) {
+        await sock.sendMessage(sender, {
+          text: "❗ Belum ada data income bulan ini. Gunakan perintah: `set income <jumlah> <target tabungan>`"
+        });
         return;
       }
 
-      const kategori = parts.slice(0, indexNominal).join(" ") || "Umum";
-      const nominal = parseFloat(parts[indexNominal]);
-      const deskripsi = parts.slice(indexNominal + 1).join(" ") || "-";
+      const income = parseFloat(incomeData.IncomeBulan || incomeData._rawData[2] || 0);
+      const target = parseFloat(incomeData.TargetTabungan || incomeData._rawData[3] || 0);
 
-      const incomeData = await getIncomeData(sender);
-      if (!incomeData) {
-        await sock.sendMessage(sender, {
-          text: `⚠️ Anda belum mengatur income untuk bulan ini.\nGunakan perintah *set income <nominal> tabungan <target_tabungan>* untuk mengatur.`
-        });
-        return; // stop di sini
+      const totalPengeluaran = await getTotalPengeluaranBulanIni(sender);
+      const tabunganSaatIni = income - totalPengeluaran;
+      const sisaTarget = target - tabunganSaatIni;
+
+      const bulan = dayjs().format("MMMM YYYY");
+
+      const status =
+        sisaTarget <= 0
+          ? "✅ Target tabungan tercapai atau melebihi!"
+          : `⚠️ Target tabungan belum tercapai. Kurang Rp${sisaTarget.toLocaleString()}`;
+
+      await sock.sendMessage(sender, {
+        text: `📊 *Progress Tabungan Bulan Ini (${bulan}):*\n
+    💰 Income Bulanan: Rp${income.toLocaleString()}
+    🎯 Target Tabungan: Rp${target.toLocaleString()}
+    💸 Total Pengeluaran: Rp${totalPengeluaran.toLocaleString()}
+    💼 Tabungan Saat Ini: Rp${tabunganSaatIni.toLocaleString()}
+
+    ${status}`
+      });
+    }
+
+    else if (text.startsWith("+")) {
+      const lines = text.trim().split("\n").filter(line => line.startsWith("+"));
+
+      const hasil = [];
+
+      for (const line of lines) {
+        const cleanLine = line.substring(1).trim();
+
+        // Regex untuk mencari angka pertama sebagai nominal
+        const match = cleanLine.match(/(.+?)\s+(\d+(?:\.\d+)?)(?:\s+(.*))?$/);
+
+        if (!match) {
+          hasil.push(`❗ Format tidak valid: ${line}`);
+          continue;
+        }
+
+        const kategori = match[1].trim();
+        const nominal = parseFloat(match[2]);
+        const deskripsi = (match[3] || "-").trim();
+
+        // Validasi income dulu (tidak bisa input jika belum set income bulan ini)
+        const incomeData = await getIncomeData(sender);
+        if (!incomeData) {
+          await sock.sendMessage(sender, {
+            text: "❗ Belum ada data income bulan ini. Gunakan perintah: `set income <jumlah> tabungan <target>`"
+          });
+          return;
+        }
+
+        // Cek limit harian
+        const maxHarian = parseFloat(incomeData.MaxHarian || incomeData._rawData[4] || 0);
+        const transaksiHariIni = await laporanHariIni(sender);
+        const totalHariIni = transaksiHariIni.reduce((acc, r) => acc + parseFloat(r.Nominal || r._rawData[4] || 0), 0);
+        const totalSetelah = totalHariIni + nominal;
+
+        if (totalSetelah > maxHarian) {
+          hasil.push(`⚠️ [${kategori}] Pengeluaran melebihi limit harian!\nLimit: Rp${maxHarian}\nHari ini: Rp${totalHariIni}\nAkan dicatat: Rp${nominal}`);
+        }
+
+        await appendTransaksi(sender, kategori, nominal, deskripsi);
+        hasil.push(`✔ Pengeluaran dicatat:\n✅ ${kategori} - Rp${nominal.toLocaleString()} (${deskripsi})`);
       }
-    
-      // Jika income ada → lanjut cek batas harian
-      const maxHarian = parseFloat(incomeData.MaxHarian || "0");
-      const transaksiHariIni = await laporanHariIni(sender);
-      const totalHariIni = transaksiHariIni.reduce((acc, r) => acc + parseFloat(r.Nominal || 0), 0);
-    
-      if (totalHariIni + nominal > maxHarian) {
-        await sock.sendMessage(sender, {
-          text: `⚠️ Pengeluaran melebihi batas harian!\nLimit: Rp${maxHarian}\nHari ini: Rp${totalHariIni}\nYang akan dicatat: Rp${nominal}`
-        });
+
+      const hasilText = hasil.join("\n\n");
+      await sock.sendMessage(sender, { text: hasilText });
+    }
+
+
+    else if (text.toLowerCase() === "!ping") {
+      const start = Date.now();
+
+      // IP Lokal
+      const interfaces = os.networkInterfaces();
+      let ipLocal = "Tidak diketahui";
+
+      for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+          if (iface.family === "IPv4" && !iface.internal) {
+            ipLocal = iface.address;
+            break;
+          }
+        }
+        if (ipLocal !== "Tidak diketahui") break;
       }
-    
-      // Catat transaksi
-      await appendTransaksi(sender, kategori, nominal, deskripsi);
-      await sock.sendMessage(sender, { text: `✅ Pengeluaran dicatat:\n${kategori} - Rp${nominal} (${deskripsi})` });
+
+      // IP Publik
+      let ipPublic = "Gagal mendapatkan IP publik";
+      try {
+        const res = await axios.get("https://api.ipify.org?format=json");
+        ipPublic = res.data.ip;
+      } catch (err) {
+        console.error("Gagal ambil IP publik:", err.message);
+      }
+
+      const waktu = new Date().toLocaleString("id-ID");
+      const latency = Date.now() - start;
+
+      await sock.sendMessage(sender, {
+        text: `🏓 *Pong!*\nBot aktif dan responsif.
+
+    🕒 Waktu Server: ${waktu}
+    🌐 IP Lokal: ${ipLocal}
+    🌍 IP Publik: ${ipPublic}
+    📶 Ping: ${latency} ms`
+      });
     }
 
     } catch (error) {
@@ -219,17 +471,11 @@ sock.ev.on("connection.update", (update) => {
   });
 
 
-
   // Jadwal analisis AI setiap jam 9 malam
-  schedule.scheduleJob("0 21 * * *", async () => {
-    const nomorAdmin = "62xxxxxxxxxx@s.whatsapp.net"; // Ganti dengan nomor Anda
-    const data = await laporanHariIni(nomorAdmin);
-    if (data.length === 0) return;
-
-    let summary = data.map((r) => `${r.Kategori}: Rp${r.Nominal} (${r.Deskripsi})`).join("\n");
-    const aiResponse = await analisisAI(`Berikan analisis pengeluaran dari data berikut:\n${summary}`);
-    await sock.sendMessage(nomorAdmin, { text: `🤖 Analisis Pengeluaran Hari Ini:\n${aiResponse}` });
-  });
+schedule.scheduleJob('0 0 15 * * *', async () => {
+  console.log("🔔 Menjalankan broadcast reminder pengeluaran...");
+  await broadcastReminderPengeluaran(sock);
+});
 }
 
 startBot();

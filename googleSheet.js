@@ -1,6 +1,8 @@
 const { GoogleSpreadsheet } = require("google-spreadsheet");
 const { JWT } = require("google-auth-library");
 const dayjs = require("dayjs");
+const customParseFormat = require("dayjs/plugin/customParseFormat");
+dayjs.extend(customParseFormat);
 
 function mapRow(row) {
   return {
@@ -36,8 +38,6 @@ const serviceAccountAuth = new JWT({
 async function initDoc() {
   const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
   await doc.loadInfo();
-  const sheet = doc.sheetsByTitle["Target"];
-  await sheet.setHeaderRow(['User', 'TotalTarget', 'BulanAkhir', 'TahunAkhir']);
   return doc;
 }
 
@@ -64,99 +64,27 @@ async function getTarget(user) {
   return rows.find((r) => r.User === user);
 }
 
-// async function setTarget(user, total, bulan, tahun, sendResponse) {
-//   const doc = await initDoc();
-//   const sheet = doc.sheetsByTitle["Target"];
-//   const rows = await sheet.getRows();
-
-//   // Cek apakah sudah ada target dengan bulan/tahun yang sama
-//   const existing = rows.find(
-//     (r) =>
-//       (r.User || r._rawData[0]) === user &&
-//       (r.BulanAkhir?.toString() || r._rawData[2]?.toString()) === bulan.toString() &&
-//       (r.TahunAkhir?.toString() || r._rawData[3]?.toString()) === tahun.toString()
-//   );
-
-//   if (existing) {
-//     if (sendResponse) {
-//       await sendResponse(
-//         `⚠️ Anda sudah memiliki target untuk ${bulan}/${tahun}.\nApakah Anda yakin ingin mengganti target tersebut?`
-//       );
-//     }
-//     return "EXISTS"; // tanda sudah ada, handle di pemanggil
-//   }
-
-//   await sheet.addRow({
-//     User: user,
-//     TotalTarget: total,
-//     BulanAkhir: bulan,
-//     TahunAkhir: tahun,
-//   });
-
-//   if (sendResponse) {
-//     await sendResponse(`✅ Target disimpan: Rp${total} hingga ${bulan}/${tahun}`);
-//   }
-
-//   return "ADDED";
-// }
-
-// async function overwriteTarget(user, total, bulan, tahun, sendResponse) {
-//   const doc = await initDoc();
-//   const sheet = doc.sheetsByTitle["Target"];
-//   const rows = await sheet.getRows();
-
-//   const existing = rows.find(
-//     (r) =>
-//       (r.User || r._rawData[0]) === user &&
-//       parseInt(r.BulanAkhir || r._rawData[2]) === bulan &&
-//       parseInt(r.TahunAkhir || r._rawData[3]) === tahun
-//   );
-
-//   if (!existing) {
-//     if (sendResponse) {
-//       await sendResponse(`❗ Target tidak ditemukan untuk ${bulan}/${tahun}.`);
-//     }
-//     return "NOT_FOUND";
-//   }
-
-
-//   // Ganti langsung property di row
-//   if ("TotalTarget" in existing) {
-//     existing.TotalTarget = total;
-//   } else {
-//     // fallback kalau entah kenapa nggak ada properti
-//     existing._rawData[1] = total;
-//   }
-
-//   await existing.save();
-
-//   console.log("✅ After update:", existing._rawData);
-
-//   if (sendResponse) {
-//     await sendResponse(`✅ Target untuk ${bulan}/${tahun} berhasil diganti menjadi Rp${total}`);
-//   }
-//   return "UPDATED";
-// }
-
-
-async function laporanHariIni(user) {
+async function laporanHariIni(user, tanggalInput = null) {
   const doc = await initDoc();
   const sheet = doc.sheetsByTitle["Transaksi"];
-  sheet.headerRow = 1;
   const rows = await sheet.getRows();
 
-  const today = new Date().toISOString().slice(0, 10);
-  return rows
-    .map((r) => ({
-      ID: r.Timestamp || r._rawData[0],
-      Timestamp: r.Timestamp || r._rawData[1],
-      User: r.User || r._rawData[2],
-      Kategori: r.Kategori || r._rawData[3],
-      Nominal: r.Nominal || r._rawData[4],
-      Deskripsi: r.Deskripsi || r._rawData[5],
-    }))
-    
-    .filter((r) => r.Timestamp?.startsWith(today) && r.User === user);
+  let targetDate = dayjs();
+  if (tanggalInput) {
+    targetDate = dayjs(tanggalInput);
+  }
+
+  const targetStr = targetDate.format("YYYY-MM-DD");
+
+  return rows.filter((r) => {
+    const rowUser = r.User || r._rawData[2];
+    const timestamp = r.Timestamp || r._rawData[1];
+
+    // Ambil hanya bagian tanggal dari timestamp (tanpa jam)
+    const rowDate = timestamp?.split("T")[0];
+
+    return rowUser === user && rowDate === targetStr;
+  });
 }
 
 async function hapusTransaksiRow(transaksi) {
@@ -164,21 +92,18 @@ async function hapusTransaksiRow(transaksi) {
   const sheet = doc.sheetsByTitle["Transaksi"];
   const rows = await sheet.getRows();
 
-  rows.forEach((r, i) => {
-    console.log(`Row ${i + 1}:`, r._rawData);
-  });
+  const idTarget = transaksi.ID || transaksi._rawData?.[0];
 
-  const row = rows.find(r => 
-    (r.User || r._rawData[2]) === transaksi.User && 
-    (r.Timestamp || r._rawData[1]) === transaksi.Timestamp
+  const row = rows.find(
+    (r) => (r.ID || r._rawData[0]) === idTarget
   );
 
   if (row) {
     await row.delete();
     return true;
-  } else {
-    return false;
   }
+
+  return false;
 }
 
 //session income
@@ -227,6 +152,26 @@ async function setIncome(user, totalIncome, targetTabungan, sendResponse) {
   }
 }
 
+async function getTotalPengeluaranBulanIni(user) {
+  const doc = await initDoc();
+  const sheet = doc.sheetsByTitle["Transaksi"];
+  const rows = await sheet.getRows();
+
+  const now = dayjs(); // Bulan & tahun saat ini
+
+  const filtered = rows.filter((r) => {
+    const rowUser = r.User || r._rawData[2];
+    const timestamp = r.Timestamp || r._rawData[1];
+
+    if (rowUser !== user || !timestamp) return false;
+
+    const tgl = dayjs(timestamp);
+    return tgl.isValid() && tgl.month() === now.month() && tgl.year() === now.year();
+  });
+
+  const total = filtered.reduce((acc, r) => acc + parseFloat(r.Nominal || r._rawData[4] || 0), 0);
+  return total;
+}
 
 async function getIncomeData(user) {
   const doc = await initDoc();
@@ -252,12 +197,13 @@ async function getIncomeData(user) {
 
   return dataObj;
 }
+
 module.exports = {
+  initDoc,
   appendTransaksi,
   getTarget,
-  // setTarget,
+  getTotalPengeluaranBulanIni,
   laporanHariIni,
-  // overwriteTarget,
   hapusTransaksiRow,
   setIncome,
   getIncomeData,
