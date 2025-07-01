@@ -63,9 +63,10 @@ node index.js
 | Perintah                                     | Keterangan                                           |
 | -------------------------------------------- | ---------------------------------------------------- |
 | `+kategori nominal deskripsi`                | Catat pengeluaran. Contoh: `+makan siang 25000 ayam` |
-| `ringkasan hari ini`                         | Lihat pengeluaran hari ini                           |
-| `set income nominal_income nominal_tabungan` | Atur income bulanan + target tabungan                |
+| `ringkasan`                                  | Lihat pengeluaran hari ini                           |
+| `set income nominal_income tabungan nominal_tabungan` | Atur income bulanan + target tabungan                |
 | `hapus pengeluaran`                          | Lihat daftar pengeluaran → reply nomor untuk hapus   |
+| `help`                                       | Lihat detail command                                 |
 
 ---
 
