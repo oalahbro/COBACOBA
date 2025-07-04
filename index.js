@@ -147,6 +147,7 @@ Contoh:
 · _progress tabungan_
 
 ✉️ Ketik *help* kapan saja untuk melihat panduan ini kembali.  
+
 🙏 Terima kasih telah menggunakan bot ini!`;
         await sock.sendMessage(sender, { text: helpMessage });
       }
@@ -358,7 +359,7 @@ Contoh:
       const totalPengeluaran = await getTotalPengeluaranBulanIni(sender);
       const tabunganSaatIni = income - totalPengeluaran;
       const sisaTarget = target - tabunganSaatIni;
-
+      const sisaBudget = income - target - totalPengeluaran;
       const bulan = dayjs().format("MMMM YYYY");
 
       const status =
@@ -372,6 +373,7 @@ Contoh:
     🎯 Target Tabungan: Rp${target.toLocaleString()}
     💸 Total Pengeluaran: Rp${totalPengeluaran.toLocaleString()}
     💼 Tabungan Saat Ini: Rp${tabunganSaatIni.toLocaleString()}
+    👛 Sisa Budget Bulan Ini : Rp${sisaBudget.toLocaleString()}
 
     ${status}`
       });
