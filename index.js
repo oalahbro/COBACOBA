@@ -359,7 +359,7 @@ Contoh:
       const totalPengeluaran = await getTotalPengeluaranBulanIni(sender);
       const tabunganSaatIni = income - totalPengeluaran;
       const sisaTarget = target - tabunganSaatIni;
-      const sisaBudget = income - target - totalPengeluaran;
+      const sisaBudget = totalPengeluaran - target;
       const bulan = dayjs().format("MMMM YYYY");
 
       const status =
