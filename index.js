@@ -205,13 +205,13 @@ Contoh:
               const kategori = r.Kategori || r._rawData?.[3] || "-";
               const nominal = r.Nominal || r._rawData?.[4] || 0;
               const deskripsi = r.Deskripsi || r._rawData?.[5] || "-";
-              return `• ${kategori} - Rp${nominal} (${deskripsi})`;
+              return `• ${kategori} - Rp${nominal.toLocaleString()} (${deskripsi})`;
             }).join("\n");
 
             summary = summary || "Tidak ada transaksi.";
 
             await sock.sendMessage(sender, {
-              text: `${header}\n${summary}\n\n💰 Total: Rp${total}`
+              text: `${header}\n${summary}\n\n💰 *Total: Rp${total.toLocaleString()}*`
             });
           }
     else if (text.toLowerCase().startsWith("hapus pengeluaran")) {
@@ -369,11 +369,11 @@ Contoh:
 
       await sock.sendMessage(sender, {
         text: `📊 *Progress Tabungan Bulan Ini (${bulan}):*\n
-    💰 Income Bulanan: Rp${income.toLocaleString()}
-    🎯 Target Tabungan: Rp${target.toLocaleString()}
-    💸 Total Pengeluaran: Rp${totalPengeluaran.toLocaleString()}
-    💼 Tabungan Saat Ini: Rp${tabunganSaatIni.toLocaleString()}
-    👛 Sisa Budget Bulan Ini : Rp${sisaBudget.toLocaleString()}
+    💰 Income Bulanan: *Rp${income.toLocaleString()}*
+    🎯 Target Tabungan: *Rp${target.toLocaleString()}*
+    💸 Total Pengeluaran: *Rp${totalPengeluaran.toLocaleString()}*
+    💼 Tabungan Saat Ini: *Rp${tabunganSaatIni.toLocaleString()}*
+    👛 Sisa Budget Bulan Ini : *Rp${sisaBudget.toLocaleString()}*
 
     ${status}`
       });
