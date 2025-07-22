@@ -156,6 +156,8 @@ Contoh:
             const today = dayjs();
             let allData = [];
             let header = "📅 Ringkasan:";
+            const incomeData = await getIncomeData(sender);
+            const maxHarian = parseFloat(incomeData.MaxHarian || incomeData._rawData[4] || 0);
 
             // ringkasan (tanpa argumen): hanya hari ini
             if (args.length === 1) {
@@ -209,9 +211,9 @@ Contoh:
             }).join("\n");
 
             summary = summary || "Tidak ada transaksi.";
-
+            let sisa = maxHarian - total
             await sock.sendMessage(sender, {
-              text: `${header}\n${summary}\n\n💰 *Total: Rp${total.toLocaleString()}*`
+              text: `${header}\n${summary}\n\n💰 *Total: Rp${total.toLocaleString()}*\n👛 *Sisa: Rp${sisa.toLocaleString()}*`
             });
           }
     else if (text.toLowerCase().startsWith("hapus pengeluaran")) {
@@ -359,7 +361,7 @@ Contoh:
       const totalPengeluaran = await getTotalPengeluaranBulanIni(sender);
       const tabunganSaatIni = income - totalPengeluaran;
       const sisaTarget = target - tabunganSaatIni;
-      const sisaBudget = totalPengeluaran - target;
+      const sisaBudget = tabunganSaatIni - target;
       const bulan = dayjs().format("MMMM YYYY");
 
       const status =
@@ -465,13 +467,11 @@ Contoh:
     📶 Ping: ${latency} ms`
       });
     }
-
     } catch (error) {
       console.error("❌ Error handling message:", error);
       await sock.sendMessage(sender, { text: "❗ Terjadi kesalahan, coba lagi nanti." });
     }
   });
-
 
   // Jadwal analisis AI setiap jam 9 malam
 schedule.scheduleJob('0 0 15 * * *', async () => {
